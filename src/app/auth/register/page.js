@@ -1,0 +1,3 @@
+import Link from "next/link";
+import RegisterForm from "@/components/auth/RegisterForm";
+export default function RegisterPage() { return <main className="flex min-h-screen items-center justify-center px-6"><div className="w-full max-w-md"><Link href="/" className="font-bold">CutMatch</Link><h1 className="mt-8 text-3xl font-bold">Create account</h1><p className="mt-2 text-slate-500">Start matching editors and film projects.</p><div className="mt-8"><RegisterForm /></div><p className="mt-6 text-sm text-slate-500">Already have an account? <Link className="font-semibold text-slate-950 dark:text-white" href="/auth/login">Login</Link></p></div></main>; }

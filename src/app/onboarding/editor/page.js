@@ -1,0 +1,2 @@
+import EditorOnboardingForm from "@/components/onboarding/EditorOnboardingForm";
+export default function EditorOnboardingPage() { return <main className="mx-auto max-w-4xl px-6 py-12"><h1 className="text-3xl font-bold">Create your editor profile</h1><p className="mt-2 text-slate-500">Your profile will be converted into an AI-searchable talent profile.</p><div className="mt-8"><EditorOnboardingForm /></div></main>; }

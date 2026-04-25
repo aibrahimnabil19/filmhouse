@@ -1,0 +1,2 @@
+import { Button } from "@/components/ui/button";
+export default function CTASection() { return <section className="px-6 py-24 text-center"><h2 className="text-4xl font-bold">Ready to build your post-production network?</h2><div className="mt-8 flex justify-center gap-3"><Button asChild href="/auth/register">Create account</Button><Button asChild href="/editors" variant="outline">Browse editors</Button></div></section>; }

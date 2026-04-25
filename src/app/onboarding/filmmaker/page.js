@@ -1,0 +1,2 @@
+import FilmmakerOnboardingForm from "@/components/onboarding/FilmmakerOnboardingForm";
+export default function FilmmakerOnboardingPage() { return <main className="mx-auto max-w-2xl px-6 py-12"><h1 className="text-3xl font-bold">Create your filmmaker profile</h1><p className="mt-2 text-slate-500">Set up your profile before creating a project.</p><div className="mt-8"><FilmmakerOnboardingForm /></div></main>; }

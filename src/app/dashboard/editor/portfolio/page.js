@@ -1,0 +1,1 @@
+export default function EditorPortfolioPage() { return <div><h1 className="text-2xl font-bold">Portfolio</h1><p className="mt-2 text-slate-500">Add YouTube, Vimeo, Behance, or uploaded portfolio items.</p></div>; }

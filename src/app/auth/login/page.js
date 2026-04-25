@@ -1,0 +1,3 @@
+import Link from "next/link";
+import LoginForm from "@/components/auth/LoginForm";
+export default function LoginPage() { return <main className="flex min-h-screen items-center justify-center px-6"><div className="w-full max-w-md"><Link href="/" className="font-bold">CutMatch</Link><h1 className="mt-8 text-3xl font-bold">Login</h1><p className="mt-2 text-slate-500">Welcome back.</p><div className="mt-8"><LoginForm /></div><p className="mt-6 text-sm text-slate-500">No account? <Link className="font-semibold text-slate-950 dark:text-white" href="/auth/register">Register</Link></p></div></main>; }

@@ -1,0 +1,2 @@
+import { formatCurrency } from "@/lib/utils/formatCurrency";
+export default function EditorRateCard({ editor }) { return <div className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800"><h3 className="font-semibold">Rates</h3><p className="mt-3 text-sm text-slate-500">Hourly: {formatCurrency(editor?.hourly_rate)}</p><p className="text-sm text-slate-500">Project: {formatCurrency(editor?.project_rate_min)} - {formatCurrency(editor?.project_rate_max)}</p></div>; }

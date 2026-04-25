@@ -1,0 +1,3 @@
+import { Avatar } from "@/components/ui/avatar";
+import AvailabilityBadge from "./AvailabilityBadge";
+export default function EditorProfileHeader({ editor }) { const name = editor?.profiles?.full_name || "Editor"; return <div className="flex flex-col gap-5 rounded-3xl border border-slate-200 p-8 dark:border-slate-800 md:flex-row md:items-center"><Avatar name={name} src={editor?.profiles?.avatar_url} className="h-20 w-20" /><div className="flex-1"><h1 className="text-3xl font-bold">{name}</h1><p className="mt-2 text-slate-500">{editor?.headline}</p></div><AvailabilityBadge status={editor?.availability_status} /></div>; }

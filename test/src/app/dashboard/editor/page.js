@@ -1,0 +1,1 @@
+export default function EditorDashboardPage() { return <div><h1 className="text-2xl font-bold">Editor dashboard</h1><p className="mt-2 text-slate-500">Manage your profile, portfolio, availability, and matches.</p></div>; }

@@ -1,0 +1,1 @@
+export default function UserManagementTable({ users = [] }) { return <div className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">{users.length ? `${users.length} users` : "No users loaded."}</div>; }

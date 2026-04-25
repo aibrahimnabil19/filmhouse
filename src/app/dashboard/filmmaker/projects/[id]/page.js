@@ -1,0 +1,2 @@
+import NaturalLanguageSearchBox from "@/components/filmmaker/NaturalLanguageSearchBox";
+export default async function ProjectDetailPage({ params }) { const { id } = await params; return <div className="max-w-4xl"><h1 className="text-2xl font-bold">Find matching editors</h1><p className="mt-2 text-slate-500">Refine your request and run AI matching.</p><div className="mt-6"><NaturalLanguageSearchBox projectId={id} /></div></div>; }

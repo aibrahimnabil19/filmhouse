@@ -1,0 +1,2 @@
+import { Input } from "@/components/ui/input";
+export default function ProfileStepRates({ form, update }) { return <div className="grid gap-4 md:grid-cols-3"><Input type="number" placeholder="Hourly rate" value={form.hourlyRate || ""} onChange={(e)=>update("hourlyRate", e.target.value)} /><Input type="number" placeholder="Project min" value={form.projectRateMin || ""} onChange={(e)=>update("projectRateMin", e.target.value)} /><Input type="number" placeholder="Project max" value={form.projectRateMax || ""} onChange={(e)=>update("projectRateMax", e.target.value)} /></div>; }
