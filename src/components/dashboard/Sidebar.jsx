@@ -29,7 +29,7 @@ export default function Sidebar() {
       <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
         <Link
           href="/dashboard/filmmaker/projects/new"
-          className="block rounded-xl bg-slate-950 px-3 py-2 text-center text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+          className="block rounded-xl bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-indigo-700 shadow-sm"
         >
           + New project
         </Link>

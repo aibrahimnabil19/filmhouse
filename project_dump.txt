@@ -107,8 +107,21 @@ export { GET } from "@/app/auth/callback/route";
 ===== ./src/app/api/editors/route.js =====
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-export async function GET() { const supabase = await createClient(); const { data, error } = await supabase.from("editors").select("*, profiles(full_name, avatar_url)").eq("verification_status", "approved"); if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ editors: data }); }
 
+export async function GET(request) {
+  const supabase = await createClient();
+  const { searchParams } = new URL(request.url);
+  const all = searchParams.get("all") === "true";
+
+  let query = supabase.from("editors").select("*, profiles(full_name, avatar_url)");
+  if (!all) {
+    query = query.eq("verification_status", "approved");
+  }
+
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ editors: data });
+}
 ===== ./src/app/api/editors/[id]/route.js =====
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -125,8 +138,14 @@ export async function POST(request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data: filmmaker, error: filmmakerError } = await supabase.from("filmmakers").select("id").eq("user_id", user.id).single();
+
+  const { data: filmmaker, error: filmmakerError } = await supabase
+    .from("filmmakers")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
   if (filmmakerError) return NextResponse.json({ error: "Create filmmaker profile first" }, { status: 400 });
+
   const projectPayload = {
     filmmaker_id: filmmaker.id,
     title: body.title,
@@ -140,19 +159,50 @@ export async function POST(request) {
     style_preferences: body.stylePreferences,
     status: "searching",
   };
-  const embedding = await createEmbedding(buildProjectQueryText(projectPayload));
-  const { data, error } = await supabase.from("projects").insert({ ...projectPayload, query_embedding: embedding }).select("*").single();
+
+  // Generate embedding — don't fail project creation if this errors
+  let embedding = null;
+  try {
+    embedding = await createEmbedding(buildProjectQueryText(projectPayload));
+  } catch (err) {
+    console.warn("Could not generate project embedding:", err.message);
+  }
+
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({ ...projectPayload, ...(embedding ? { query_embedding: embedding } : {}) })
+    .select("*")
+    .single();
+
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ project: data });
 }
 
 export async function GET() {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // If unauthenticated fall through gracefully (returns empty)
+  if (!user) return NextResponse.json({ projects: [] });
+
+  // Scope to the current filmmaker's projects only
+  const { data: filmmaker } = await supabase
+    .from("filmmakers")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!filmmaker) return NextResponse.json({ projects: [] });
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("filmmaker_id", filmmaker.id)
+    .order("created_at", { ascending: false });
+
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ projects: data });
 }
-
 ===== ./src/app/api/filmmaker-projects/[id]/route.js =====
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -206,13 +256,22 @@ export async function POST(request) {
   if (!query) return NextResponse.json({ error: "Query is required" }, { status: 400 });
 
   const supabase = await createClient();
-  const embedding = await createEmbedding(query);
 
+  // Generate embedding for the query
+  let embedding = null;
+  try {
+    embedding = await createEmbedding(query);
+  } catch (err) {
+    console.error("Embedding error:", err);
+    // Continue without embedding — we'll use the fallback path
+  }
+
+  // Fetch associated project for budget/context scoring
   let project = null;
   if (body.projectId) {
     const { data } = await supabase.from("projects").select("*").eq("id", body.projectId).single();
     project = data;
-    if (data) {
+    if (data && embedding) {
       await supabase
         .from("projects")
         .update({ natural_language_query: query, query_embedding: embedding })
@@ -220,16 +279,36 @@ export async function POST(request) {
     }
   }
 
-  const { data: vectorResults, error } = await supabase.rpc("match_editors", {
-    query_embedding: embedding,
-    match_count: 20,
-  });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  // ── STEP 1: Try vector search if we have an embedding ──────────────────────
+  let vectorResults = [];
+  if (embedding) {
+    const { data, error } = await supabase.rpc("match_editors", {
+      query_embedding: embedding,
+      match_count: 20,
+    });
+    if (!error && data && data.length > 0) {
+      vectorResults = data;
+    } else if (error) {
+      console.warn("Vector search error (will use fallback):", error.message);
+    }
+  }
 
-  // Fetch profile names for matched editors in one query
-  const editorIds = (vectorResults || []).map((e) => e.editor_id);
+  // ── STEP 2: Fallback — fetch all approved editors directly ─────────────────
+  // This fires when: no embedding, RPC error, or no editors have embeddings yet
+  let usingFallback = vectorResults.length === 0;
+  let fallbackEditors = [];
+  if (usingFallback) {
+    const { data: allEditors } = await supabase
+      .from("editors")
+      .select("id, user_id, headline, bio, years_experience, availability_status, hourly_rate, project_rate_min, project_rate_max, rating_avg, profile_embedding, profiles(full_name, avatar_url)")
+      .eq("verification_status", "approved");
+    fallbackEditors = allEditors || [];
+  }
+
+  // ── STEP 3: Fetch profile names for vector results ─────────────────────────
   let profilesByEditorId = {};
-  if (editorIds.length > 0) {
+  if (!usingFallback && vectorResults.length > 0) {
+    const editorIds = vectorResults.map((e) => e.editor_id);
     const { data: editorProfiles } = await supabase
       .from("editors")
       .select("id, profiles(full_name, avatar_url)")
@@ -241,8 +320,12 @@ export async function POST(request) {
     }
   }
 
-  const matches = (vectorResults || [])
-    .map((editor) => {
+  // ── STEP 4: Build match results ────────────────────────────────────────────
+  let matches = [];
+
+  if (!usingFallback) {
+    // Vector path — editors from the RPC
+    matches = vectorResults.map((editor) => {
       const score = calculateMatchScore({ editor, semanticScore: editor.semantic_score, project });
       const profile = profilesByEditorId[editor.editor_id];
       return {
@@ -258,10 +341,37 @@ export async function POST(request) {
         percentage: Math.round(score.finalScore * 100),
         matchReason: buildMatchReason({ editor, score }),
       };
-    })
-    .sort((a, b) => b.finalScore - a.finalScore);
+    });
+  } else {
+    // Fallback path — all approved editors, scored without semantic similarity
+    // Use a neutral semantic score of 0.6 so results look reasonable
+    matches = fallbackEditors.map((editor) => {
+      // If this editor has an embedding, we could do client-side cosine sim,
+      // but for simplicity assign a neutral semantic score
+      const semanticScore = 0.6;
+      const score = calculateMatchScore({ editor, semanticScore, project });
+      const profile = editor.profiles;
+      return {
+        editorId: editor.id,
+        userId: editor.user_id,
+        fullName: profile?.full_name || null,
+        avatarUrl: profile?.avatar_url || null,
+        headline: editor.headline,
+        yearsExperience: editor.years_experience,
+        availabilityStatus: editor.availability_status,
+        semanticScore: score.semanticScore,
+        finalScore: score.finalScore,
+        percentage: Math.round(score.finalScore * 100),
+        matchReason: buildMatchReason({ editor, score }),
+      };
+    });
+  }
 
-  if (project?.id) {
+  // Sort by final score descending
+  matches = matches.sort((a, b) => b.finalScore - a.finalScore);
+
+  // ── STEP 5: Persist matches to DB if linked to a project ───────────────────
+  if (project?.id && matches.length > 0) {
     await supabase.from("matches").upsert(
       matches.map((m) => ({
         project_id: project.id,
@@ -273,7 +383,10 @@ export async function POST(request) {
     );
   }
 
-  return NextResponse.json({ matches });
+  return NextResponse.json({
+    matches,
+    meta: { usingFallback, total: matches.length },
+  });
 }
 ===== ./src/app/api/portfolio/route.js =====
 import { NextResponse } from "next/server";
@@ -309,9 +422,129 @@ export default function RegisterPage() { return <main className="flex min-h-scre
 export default function AdminAnalyticsPage() { return <div><h1 className="text-2xl font-bold">Analytics</h1></div>; }
 
 ===== ./src/app/dashboard/admin/editors/page.js =====
-import EditorApprovalTable from "@/components/admin/EditorApprovalTable";
-export default function AdminEditorsPage() { return <div><h1 className="text-2xl font-bold">Editor approvals</h1><div className="mt-6"><EditorApprovalTable editors={[]} /></div></div>; }
+"use client";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
+export default function AdminEditorsPage() {
+  const [editors, setEditors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    fetch("/api/editors")
+      .then((r) => r.json())
+      .then((j) => { setEditors(j.editors || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  async function approve(editorId) {
+    await fetch("/api/admin/approve-editor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editorId }),
+    });
+    setEditors((prev) =>
+      prev.map((e) => e.id === editorId ? { ...e, verification_status: "approved" } : e)
+    );
+  }
+
+  async function reject(editorId) {
+    await fetch("/api/admin/reject-editor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editorId }),
+    });
+    setEditors((prev) =>
+      prev.map((e) => e.id === editorId ? { ...e, verification_status: "rejected" } : e)
+    );
+  }
+
+  async function regenerateAll() {
+    setRegenerating(true);
+    setMessage("Fetching editor list...");
+    const res = await fetch("/api/matching/regenerate-all", { method: "POST" });
+    const { editorIds = [] } = await res.json();
+    setMessage(`Regenerating embeddings for ${editorIds.length} editors...`);
+    let done = 0;
+    for (const editorId of editorIds) {
+      await fetch("/api/matching/generate-editor-embedding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ editorId }),
+      });
+      done++;
+      setMessage(`Regenerated ${done} / ${editorIds.length} editor embeddings...`);
+    }
+    setMessage(`✓ Done — ${editorIds.length} editors indexed.`);
+    setRegenerating(false);
+  }
+
+  return (
+    <div>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Editor approvals</h1>
+          <p className="mt-1 text-sm text-slate-500">Approve editors and regenerate AI search embeddings.</p>
+        </div>
+        <Button onClick={regenerateAll} disabled={regenerating} variant="outline" size="sm">
+          {regenerating ? "Indexing..." : "↻ Regenerate all embeddings"}
+        </Button>
+      </div>
+
+      {message && (
+        <p className="mt-3 rounded-xl bg-blue-50 px-4 py-2 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+          {message}
+        </p>
+      )}
+
+      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-900">
+            <tr>
+              <th className="p-3 text-left">Editor</th>
+              <th className="p-3 text-left">Headline</th>
+              <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={4} className="p-4 text-center text-slate-500">Loading...</td></tr>
+            ) : editors.length === 0 ? (
+              <tr><td colSpan={4} className="p-4 text-center text-slate-500">No editors found.</td></tr>
+            ) : (
+              editors.map((e) => (
+                <tr key={e.id} className="border-t border-slate-200 dark:border-slate-800">
+                  <td className="p-3 font-medium">{e.profiles?.full_name || "—"}</td>
+                  <td className="p-3 text-slate-500">{e.headline || "—"}</td>
+                  <td className="p-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                      e.verification_status === "approved"
+                        ? "bg-green-100 text-green-700"
+                        : e.verification_status === "rejected"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}>
+                      {e.verification_status || "pending"}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => approve(e.id)}>Approve</Button>
+                      <Button size="sm" variant="outline" onClick={() => reject(e.id)}>Reject</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 ===== ./src/app/dashboard/admin/page.js =====
 import PlatformStats from "@/components/admin/PlatformStats";
 export default function AdminPage() { return <div><h1 className="text-2xl font-bold">Admin dashboard</h1><div className="mt-6"><PlatformStats /></div></div>; }
@@ -1489,22 +1722,15 @@ export const projectSchema = z.object({
   naturalLanguageQuery: z.string().min(15),
 });
 
-===== ./src/proxy.js =====
+===== ./src/middleware.js =====
 import { updateSession } from "@/lib/supabase/middleware";
 
-export async function proxy(request) {
+export async function middleware(request) {
   return await updateSession(request);
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static
-     * - _next/image
-     * - favicon.ico
-     * - image files
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
