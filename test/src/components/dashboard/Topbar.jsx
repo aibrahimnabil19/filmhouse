@@ -1,1 +1,1 @@
-export default function Topbar() { return <header className="border-b border-slate-200 px-6 py-4 dark:border-slate-800"><div className="flex items-center justify-between"><p className="font-semibold">Dashboard</p><p className="text-sm text-slate-500">CutMatch MVP</p></div></header>; }
+export default function Topbar() { return <header className="border-b border-slate-200 px-6 py-4 dark:border-slate-800"><div className="flex items-center justify-between"><p className="font-semibold">Dashboard</p><p className="text-sm text-slate-500">FilmHouse MVP</p></div></header>; }

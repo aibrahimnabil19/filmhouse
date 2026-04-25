@@ -6,8 +6,8 @@ export default function HeroSection() {
   return (
     <section className="relative overflow-hidden px-6 py-8">
       <nav className="mx-auto flex max-w-7xl items-center justify-between">
-        <Link href="/" className="text-xl font-bold tracking-tight">CutMatch</Link>
-        <div className="hidden items-center gap-6 text-sm text-slate-600 dark:text-slate-300 md:flex">
+        <Link href="/" className="text-xl font-bold tracking-tight">FilmHouse</Link>
+        <div className="hidden items-center gap-6 text-sm text-green-600 dark:text-slate-300 md:flex">
           <Link href="/editors">Find editors</Link>
           <Link href="/auth/register">Become an editor</Link>
           <Link href="/auth/login">Login</Link>
@@ -18,7 +18,7 @@ export default function HeroSection() {
         <div>
           <Badge variant="secondary">AI-powered post-production matchmaking</Badge>
           <h1 className="mt-6 max-w-4xl text-5xl font-black tracking-tight md:text-7xl">Find the right video editor by describing your project.</h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">CutMatch matches filmmakers with editors based on storytelling style, genre, software, pacing, availability, experience, and portfolio relevance.</p>
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">FilmHouse matches filmmakers with editors based on storytelling style, genre, software, pacing, availability, experience, and portfolio relevance.</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild href="/onboarding/filmmaker" size="lg">Find an editor</Button>
             <Button asChild href="/onboarding/editor" variant="outline" size="lg">Apply as editor</Button>

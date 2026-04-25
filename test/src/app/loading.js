@@ -1,3 +1,3 @@
 export default function Loading() {
-  return <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Loading CutMatch...</div>;
+  return <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Loading FilmHouse...</div>;
 }

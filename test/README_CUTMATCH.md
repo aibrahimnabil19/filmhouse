@@ -1,4 +1,4 @@
-# CutMatch MVP Scaffold
+# FilmHouse MVP Scaffold
 
 Copy the `src` folder into your project, merge `package.json` dependencies, create the Supabase tables from `database/schema.sql`, then add your environment variables.
 
